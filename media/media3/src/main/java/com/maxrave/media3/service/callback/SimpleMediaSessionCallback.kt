@@ -562,10 +562,7 @@ internal class SimpleMediaSessionCallback(
                 SONG -> {
                     val songId = path.getOrNull(1) ?: return@future defaultResult
                     val firstQueue = songRepository.getSongById(songId).first()?.toTrack()
-                        ?: streamRepository.getFullMetadata(songId).lastOrNull()?.data?.also { track ->
-                            // Pre-save to DB so future lookups (queue restore, etc.) succeed
-                            songRepository.insertSong(track.toSongEntity()).singleOrNull()
-                        }
+                        ?: streamRepository.getFullMetadata(songId).lastOrNull()?.data
                         ?: return@future defaultResult
                     mediaPlayerHandler.setQueueData(
                         QueueData.Data(
