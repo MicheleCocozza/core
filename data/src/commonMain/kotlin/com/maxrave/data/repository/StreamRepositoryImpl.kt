@@ -8,6 +8,7 @@ import com.maxrave.data.db.datasource.LocalDataSource
 import com.maxrave.data.mapping.toSponsorSkipSegments
 import com.maxrave.data.mapping.toTrack
 import com.maxrave.domain.data.entities.NewFormatEntity
+import com.maxrave.domain.data.player.LiveStreamRegistry
 import com.maxrave.domain.data.model.browse.album.Track
 import com.maxrave.domain.data.model.mediaService.SponsorSkipSegments
 import com.maxrave.domain.extension.isBefore
@@ -119,6 +120,14 @@ internal class StreamRepositoryImpl(
                 )
                 .onSuccess { data ->
                     val response = data.second
+                    val isLive = response.videoDetails?.isLive == true
+                    LiveStreamRegistry.recordLiveStatus(videoId, isLive)
+                    if (isLive) {
+                        val liveHlsUrl = response.streamingData?.hlsManifestUrl
+                        Logger.w("Stream", "Live stream $videoId: $liveHlsUrl")
+                        emit(liveHlsUrl)
+                        return@onSuccess
+                    }
                     if (data.third == MediaType.Song) {
                         Logger.w(
                             "Stream",
