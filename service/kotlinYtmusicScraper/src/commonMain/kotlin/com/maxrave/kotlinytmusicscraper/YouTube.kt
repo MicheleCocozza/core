@@ -1317,12 +1317,67 @@ class YouTube {
         var sigResponse: PlayerResponse?
         Logger.d(TAG, "YouTube TempRes ${tempRes.playabilityStatus}")
         if (tempRes.playabilityStatus.status != "OK") {
-            return null
+            // WEB_REMIX refused this video (UNPLAYABLE/LOGIN_REQUIRED). Don't abort: the extractor
+            // path (PipePipe / BraveNewPipe) fetches streams independently and doesn't need an OK
+            // player-API status. Mark sigResponse as null so the code below builds a synthetic
+            // PlayerResponse from extractor URLs + tempRes.videoDetails.
+            sigResponse = null
         } else {
             sigResponse = tempRes
         }
         val streamsList = ytMusic.getNewPipePlayer(videoId).orderByAudioTrack(preferredAudioLanguage)
         if (streamsList.isEmpty()) return null
+
+        if (sigResponse == null) {
+            // WEB_REMIX was UNPLAYABLE but the extractor delivered streams. Build a synthetic
+            // PlayerResponse: metadata from tempRes (always present even when UNPLAYABLE),
+            // stream URLs from the extractor.
+            val syntheticFormats = streamsList
+                .filter { !isManifestUrl(it.second) }
+                .map { (itag, url) ->
+                    PlayerResponse.StreamingData.Format(
+                        itag = itag,
+                        url = url,
+                        mimeType = "",
+                        bitrate = 0,
+                        width = null,
+                        height = null,
+                        contentLength = contentLengthOf(url),
+                        quality = "",
+                        fps = null,
+                        qualityLabel = null,
+                        averageBitrate = 0,
+                        audioQuality = null,
+                        approxDurationMs = "",
+                        audioSampleRate = null,
+                        audioChannels = null,
+                        loudnessDb = null,
+                        lastModified = null,
+                        signatureCipher = null,
+                    )
+                }
+            val hlsUrl = streamsList.firstOrNull { it.first == 96 }?.second
+                ?: streamsList.firstOrNull { isManifestUrl(it.second) }?.second
+            val syntheticResponse = tempRes.copy(
+                playabilityStatus = PlayerResponse.PlayabilityStatus(status = "OK", reason = null),
+                streamingData = PlayerResponse.StreamingData(
+                    expiresInSeconds = 21540,
+                    formats = syntheticFormats,
+                    adaptiveFormats = emptyList(),
+                    hlsManifestUrl = hlsUrl,
+                    serverAbrStreamingUrl = null,
+                ),
+            )
+            val checkUrls = syntheticFormats.mapNotNull { it.url }
+            val checkUrl = checkUrls.randomOrNull() ?: return null
+            return if (!is403Url(checkUrl)) {
+                Logger.d(TAG, "YouTube NewPipe (unplayable-fallback) Found URL for $videoId")
+                syntheticResponse
+            } else {
+                Logger.d(TAG, "YouTube NewPipe (unplayable-fallback) URLs are 403 for $videoId")
+                null
+            }
+        }
 
         decodedSigResponse =
             sigResponse.copy(
