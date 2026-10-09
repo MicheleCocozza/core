@@ -1,4 +1,4 @@
-package com.maxrave.kotlinytmusicscraper
+﻿package com.maxrave.kotlinytmusicscraper
 
 import com.maxrave.domain.extension.now
 import com.maxrave.kotlinytmusicscraper.extractor.Extractor
@@ -404,6 +404,25 @@ class Ytmusic {
                 ),
             )
             parameter("prettyPrint", false)
+        }
+
+    suspend fun androidFallbackPlayer(
+        videoId: String,
+        cpn: String?,
+    ) = httpClient.post("https://www.youtube.com/youtubei/v1/player") {
+            contentType(ContentType.Application.Json)
+            header(HttpHeaders.UserAgent, ANDROID.userAgent)
+            header("X-YouTube-Client-Name", "{ANDROID.xClientName}")
+            header("X-YouTube-Client-Version", ANDROID.clientVersion)
+            parameter("prettyPrint", false)
+            setBody(
+                PlayerBody(
+                    context = ANDROID.toContext(locale, visitorData),
+                    videoId = videoId,
+                    playlistId = null,
+                    cpn = cpn,
+                ),
+            )
         }
 
     suspend fun noLogInPlayer(

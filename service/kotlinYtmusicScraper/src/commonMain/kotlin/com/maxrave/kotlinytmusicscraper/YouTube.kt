@@ -1,4 +1,4 @@
-package com.maxrave.kotlinytmusicscraper
+﻿package com.maxrave.kotlinytmusicscraper
 
 import com.eygraber.uri.toKmpUri
 import com.maxrave.common.ITAG
@@ -1636,7 +1636,22 @@ class YouTube {
             } else {
                 Logger.d(TAG, "YouTube Player no URL found")
             }
-            if (decodedSigResponse == null) throw RuntimeException("No URL found")
+            if (decodedSigResponse == null) {
+                // PipePipe and BraveNewPipe both failed. Try the ANDROID client directly,
+                // which is known to serve UNPLAYABLE videos (e.g. Dragon Ball, Naruto themes).
+                Logger.d(TAG, "YouTube Player trying ANDROID direct fallback for ")
+                val androidRes = runCatching {
+                    ytMusic.androidFallbackPlayer(videoId, cpn).body<PlayerResponse>()
+                }.getOrNull()
+                if (androidRes?.playabilityStatus?.status == "OK" &&
+                    androidRes.streamingData?.adaptiveFormats?.isNotEmpty() == true) {
+                    Logger.d(TAG, "YouTube Player ANDROID fallback succeeded for ")
+                    decodedSigResponse = androidRes
+                } else {
+                    Logger.d(TAG, "YouTube Player ANDROID fallback also failed for ")
+                    throw RuntimeException("No URL found")
+                }
+            }
             val firstThumb =
                 decodedSigResponse.videoDetails
                     ?.thumbnail
